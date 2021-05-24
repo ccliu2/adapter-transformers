@@ -138,6 +138,55 @@ class Adapter(nn.Module):
             module.bias.data.zero_()
 
 
+class MyAdapter(nn.Module):
+    """
+    Implementation of a single Adapter block.
+    """
+
+    def __init__(
+            self,
+            input_size,
+            down_sample=None,
+            non_linearity="relu",
+            init_bert_weights=True,
+            add_layer_norm_before=True,
+            add_layer_norm_after=False,
+            residual_before_ln=True,
+    ):
+        super().__init__(input_size,
+                         down_sample,
+                         non_linearity,
+                         init_bert_weights,
+                         add_layer_norm_before,
+                         add_layer_norm_after,
+                         residual_before_ln)
+
+    def forward(self, x, residual_input):  # , residual_input=None):
+        down = self.adapter_down(x)
+
+        up = self.adapter_up(down)
+
+        output = up
+
+        # TODO: add auto correlation
+        self.adapter_down._get_item_by_idx(0).weight
+        self.adapter_up.weight
+
+        # apply residual connection before layer norm if configured in this way
+        if self.residual_before_ln:
+            output = output + residual_input
+
+        # apply layer norm if available
+        if self.add_layer_norm_after:
+            output = self.adapter_norm_after(output)
+
+        # if residual should be applied after layer norm, apply it here
+        if not self.residual_before_ln:
+            output = output + residual_input
+
+        return output, down, up, ac
+
+
 # Adapter Fusion
 
 

@@ -43,8 +43,10 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
     set_seed,
+    EarlyStoppingCallback
 )
 from transformers.trainer_utils import is_main_process
+# from transformers.trainer_callback import EarlyStoppingCallback
 
 
 task_to_keys = {
@@ -136,6 +138,8 @@ class ModelArguments:
         default=True,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
     )
+    use_regularizer: bool = field(default=True)
+    regularizer_strength: float = field(default=0.085)
 
 
 def main():
@@ -272,7 +276,11 @@ def main():
                 adapter_args.adapter_config,
                 non_linearity=adapter_args.adapter_non_linearity,
                 reduction_factor=adapter_args.adapter_reduction_factor,
+                regularization=model_args.use_regularizer,
+                regularization_penalty=model_args.regularizer_strength
             )
+            print(adapter_config)
+            print("#####\n#####")
             # load a pre-trained from Hub if specified
             if adapter_args.load_adapter:
                 model.load_adapter(
@@ -412,6 +420,7 @@ def main():
         data_collator=default_data_collator if data_args.pad_to_max_length else None,
         do_save_full_model=not adapter_args.train_adapter,
         do_save_adapters=adapter_args.train_adapter,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=10, early_stopping_threshold=0.0001)],
     )
 
     # Training

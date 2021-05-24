@@ -32,10 +32,13 @@ class AdapterConfig(Mapping):
     output_adapter: bool
     non_linearity: str
     reduction_factor: Union[int, Mapping]
+    adapter_type: str = "generic"
     inv_adapter: Optional[str] = None
     inv_adapter_reduction_factor: Optional[int] = None
     cross_adapter: bool = False
     leave_out: List[int] = field(default_factory=list)
+    regularization: bool = True
+    regularization_penalty: float = 0.085
 
     # We want to emulate a simple form of immutability while keeping the ability to add custom attributes.
     # Therefore, we don't allow changing attribute values if set once.
@@ -136,6 +139,7 @@ class PfeifferConfig(AdapterConfig):
     output_adapter: bool = True
     non_linearity: str = "relu"
     reduction_factor: Union[int, Mapping] = 16
+    regularization: bool = True
 
 
 @dataclass
@@ -196,6 +200,7 @@ class ModelAdaptersConfig(Collection):
             map(lambda t: (t[0], t[1][1] or t[1][0] if isinstance(t[1], tuple) else t[1]), adapters_list.items())
         )
         self.adapters: Sequence[str] = adapters_list
+
         self.config_map = kwargs.pop("config_map", {})
         # TODO-V2 Save this with config?
         self.active_setup: Optional[AdapterCompositionBlock] = None

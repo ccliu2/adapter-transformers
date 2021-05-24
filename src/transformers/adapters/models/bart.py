@@ -159,6 +159,8 @@ class BartModelAdaptersMixin(ModelAdaptersMixin):
             self.invertible_adapters = self.encoder.invertible_adapters
             self.add_invertible_adapter = self.encoder.add_invertible_adapter
             self.get_invertible_adapter = self.encoder.get_invertible_adapter
+        print(f"INFO: {self.config}")
+        print(f"INFO: {self.config.adapters}")
 
     def train_adapter(self, adapter_setup: Union[list, AdapterCompositionBlock]):
         """Sets the model into mode for training the given adapters."""
@@ -196,6 +198,33 @@ class BartModelAdaptersMixin(ModelAdaptersMixin):
         if hasattr(self, "encoder"):
             self.encoder.add_fusion_layer(adapter_names)
         self.decoder.add_fusion_layer(adapter_names)
+
+    def get_adapter_regularization_loss(self):
+        reg_loss = 0.0
+        # encoder
+        target = torch.zeros((self.config.hidden_size, self.config.hidden_size)).fill_diagonal_(1.0).to(self.device)
+        if hasattr(self, "encoder"):
+            for _, v in self.encoder.layers._modules.items():
+                for _, layer in v.attention_adapters.adapters.items():
+                    weight = layer._modules.get("adapter_down")[0].weight
+                    weight = (weight - torch.mean(weight, 0)) / torch.std(weight)
+                    cross_col = torch.matmul(torch.transpose(weight, 0, 1), weight) / weight.shape[0]
+                    reg_loss += 0.085 * (cross_col - target).pow(2).sum()
+
+                for _, layer in v.output_adapters.adapters.items():
+                    weight = layer._modules.get("adapter_down")[0].weight
+                    weight = (weight - torch.mean(weight, 0)) / torch.std(weight)
+                    cross_col = torch.matmul(torch.transpose(weight, 0, 1), weight) / weight.shape[0]
+                    reg_loss += 0.085 * (cross_col - target).pow(2).sum()
+
+        for _, v in self.decoder.layers._modules.items():
+            for _, layer in v.output_adapters.adapters.items():
+                weight = layer._modules.get("adapter_down")[0].weight
+                weight = (weight - torch.mean(weight, 0)) / torch.std(weight)
+                cross_col = torch.matmul(torch.transpose(weight, 0, 1), weight) / weight.shape[0]
+                reg_loss += 0.085 * (cross_col - target).pow(2).sum()
+
+        return reg_loss
 
     def get_fusion_regularization_loss(self):
         reg_loss = 0.0

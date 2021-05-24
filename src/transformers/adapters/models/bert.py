@@ -114,12 +114,24 @@ class BertModelAdaptersMixin(InvertibleAdaptersMixin, ModelAdaptersMixin):
     def _add_fusion_layer(self, adapter_names):
         self.encoder.add_fusion_layer(adapter_names)
 
+    def get_adapter_regularization_loss(self, regularizer_strength):
+        reg_loss = 0.0
+        # encoder
+        target = torch.zeros((self.config.hidden_size, self.config.hidden_size)).fill_diagonal_(1.0).to(self.device)
+        if hasattr(self, "encoder"):
+            for _, v in self.encoder.layer._modules.items():
+                for _, layer in v.output.adapters.items():
+                    weight = layer._modules.get("adapter_down")[0].weight
+                    weight = (weight - torch.mean(weight, 0))/torch.std(weight)
+                    cross_col = torch.matmul(torch.transpose(weight, 0, 1), weight)/weight.shape[0]
+                    reg_loss += regularizer_strength * (cross_col - target).pow(2).sum()
+        return reg_loss
+
     def get_fusion_regularization_loss(self):
         reg_loss = 0.0
 
         target = torch.zeros((self.config.hidden_size, self.config.hidden_size)).fill_diagonal_(1.0).to(self.device)
         for _, v in self.encoder.layer._modules.items():
-
             for _, layer_fusion in v.output.adapter_fusion_layer.items():
                 if hasattr(layer_fusion, "value"):
                     reg_loss += 0.01 * (target - layer_fusion.value.weight).pow(2).sum()

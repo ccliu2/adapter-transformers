@@ -5,8 +5,13 @@ import torch
 from torch import nn
 
 from .composition import AdapterCompositionBlock, Fuse, Parallel, Split, Stack
-from .modeling import Adapter, BertFusion
+from .modeling import Adapter, BertFusion, MyAdapter
 
+
+ADAPTER_TYPE_MAP = {
+    "generic": Adapter,
+    "myadapter": MyAdapter,
+}
 
 class AdapterLayerBaseMixin(ABC):
     """
@@ -44,6 +49,7 @@ class AdapterLayerBaseMixin(ABC):
         adapter_config = self.config.adapters.get(adapter_name)
         if adapter_config and adapter_config.get(self.adapter_config_key, None):
             reduction_factor = adapter_config["reduction_factor"]
+            adapter_type = adapter_config["adapter_type"]
             if isinstance(reduction_factor, Mapping):
                 if str(self.layer_idx) in reduction_factor:
                     reduction_factor = reduction_factor[str(self.layer_idx)]
@@ -55,8 +61,9 @@ class AdapterLayerBaseMixin(ABC):
                         "reduction factor individually. You need to provide a default value like this: "
                         '{"1": 16, "default": 16}'
                     )
-
-            adapter = Adapter(
+            if adapter_type not in ADAPTER_TYPE_MAP:
+                raise KeyError(f"Adapter type: {adapter_type} not found")
+            adapter = ADAPTER_TYPE_MAP.get(adapter_type)(
                 input_size=self.config.hidden_size,
                 down_sample=self.config.hidden_size // reduction_factor,
                 add_layer_norm_before=adapter_config["ln_before"],

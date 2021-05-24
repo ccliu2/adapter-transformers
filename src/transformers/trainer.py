@@ -1178,6 +1178,14 @@ class Trainer:
                         fusion_reg_loss = self.model.base_model.get_fusion_regularization_loss()
                         fusion_reg_loss.backward()
 
+                    adapter_names = list(self.model.config.adapters.adapters.values())
+                    if (
+                        hasattr(self.model.config, "adapters")
+                        and self.model.config.adapters.config_map[adapter_names[0]].regularization
+                    ):
+                        penalty= self.model.config.adapters.config_map[adapter_names[0]].regularization_penalty
+                        adapter_reg_loss = self.model.base_model.get_adapter_regularization_loss(penalty)
+                        adapter_reg_loss.backward()
                     # Gradient clipping
                     if self.args.max_grad_norm is not None and self.args.max_grad_norm > 0 and not self.deepspeed:
                         # deepspeed does its own clipping
